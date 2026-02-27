@@ -5,7 +5,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from merge_files import list_csv_files, merge_csvs, main
+# pandas is used to build DataFrames for unit tests.
+import pandas as pd
+
+from merge_files import (
+    drop_identifying_columns,
+    list_csv_files,
+    merge_csvs,
+    main,
+)
 
 
 def _write_csv(path: Path, header: str, rows: list[str]) -> None:
@@ -50,6 +58,7 @@ class MergeFilesTests(unittest.TestCase):
                 delimiter=",",
                 encoding="utf-8",
                 add_source=True,
+                remove_identifying_info=False,
                 mode="union",
             )
 
@@ -72,6 +81,7 @@ class MergeFilesTests(unittest.TestCase):
                 delimiter=",",
                 encoding="utf-8",
                 add_source=False,
+                remove_identifying_info=False,
                 mode="intersection",
             )
 
@@ -91,6 +101,7 @@ class MergeFilesTests(unittest.TestCase):
                 delimiter=",",
                 encoding="utf-8",
                 add_source=False,
+                remove_identifying_info=False,
                 mode="strict",
             )
 
@@ -103,6 +114,32 @@ class MergeFilesTests(unittest.TestCase):
             base = Path(tmp_dir)
             exit_code = main(["-i", str(base), "-p", "*.csv"])
             self.assertEqual(exit_code, 0)
+
+    def test_drop_identifying_columns(self) -> None:
+        """Project name column is removed when requested."""
+        df = pd.DataFrame({"project_name": ["a"], "x": ["1"]})
+        cleaned = drop_identifying_columns(df)
+        self.assertNotIn("project_name", cleaned.columns)
+        self.assertIn("x", cleaned.columns)
+
+    def test_merge_removes_project_name(self) -> None:
+        """Merge removes project_name when remove_identifying_info is True."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            base = Path(tmp_dir)
+            _write_csv(base / "a.csv", "project_name,x", ["proj,1"])
+
+            merged, exit_code = merge_csvs(
+                files=[base / "a.csv"],
+                delimiter=",",
+                encoding="utf-8",
+                add_source=False,
+                remove_identifying_info=True,
+                mode="union",
+            )
+
+            self.assertEqual(exit_code, 0)
+            self.assertIsNotNone(merged)
+            self.assertNotIn("project_name", merged.columns)
 
 
 if __name__ == "__main__":

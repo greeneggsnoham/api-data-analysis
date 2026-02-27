@@ -3,6 +3,7 @@
 # python merge_files.py -i . -o merged.csv
 # python merge_files.py -i data -o out.csv -s -m intersection
 # python merge_files.py -i data -p "cost_*.csv" -r -d ";" -e "utf-8-sig"
+# python merge_files.py -i data -o out.csv --keep-identifying-info
 """
 Merge multiple CSV files into a single output CSV with configurable options.
 """
@@ -111,6 +112,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default="*.csv",
         help='Filename pattern to match (default: "*.csv")',
     )
+    parser.add_argument(
+        "--keep-identifying-info",
+        action="store_true",
+        help=(
+            "Preserve identifying columns such as 'project_name' "
+            "(default: remove)."
+        ),
+    )
 
     return parser.parse_args(argv)
 
@@ -141,6 +150,7 @@ def read_csv_file(
     delimiter: str,
     encoding: str,
     add_source: bool,
+    remove_identifying_info: bool,
 ) -> pd.DataFrame:
     """
     Read a CSV file into a DataFrame, optionally injecting source filename.
@@ -150,6 +160,7 @@ def read_csv_file(
     delimiter (str): CSV delimiter.
     encoding (str): File encoding.
     add_source (bool): Whether to add a source_file column.
+    remove_identifying_info (bool): Whether to drop identifying columns.
 
     Returns:
     pd.DataFrame: Parsed DataFrame.
@@ -170,7 +181,29 @@ def read_csv_file(
             # If it already exists, still set it so it's correct.
             df["source_file"] = file_path.name
 
+    if remove_identifying_info:
+        df = drop_identifying_columns(df)
+
     return df
+
+
+# Drop identifying columns such as project name.
+def drop_identifying_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Drop identifying columns from a DataFrame.
+
+    Parameters:
+    df (pd.DataFrame): Input DataFrame.
+
+    Returns:
+    pd.DataFrame: DataFrame without identifying columns.
+    """
+    # Edge case: if the column does not exist, leave the DataFrame unchanged.
+    identifying_columns = {"project_name"}
+    to_drop = [col for col in df.columns if col in identifying_columns]
+    if not to_drop:
+        return df
+    return df.drop(columns=to_drop)
 
 
 # Align columns across frames based on the selected mode.
@@ -215,6 +248,7 @@ def merge_csvs(
     delimiter: str,
     encoding: str,
     add_source: bool,
+    remove_identifying_info: bool,
     mode: str,
 ) -> Tuple[pd.DataFrame | None, int]:
     """
@@ -225,6 +259,7 @@ def merge_csvs(
     delimiter (str): CSV delimiter.
     encoding (str): File encoding.
     add_source (bool): Whether to add a source_file column.
+    remove_identifying_info (bool): Whether to drop identifying columns.
     mode (str): Column handling mode.
 
     Returns:
@@ -243,6 +278,7 @@ def merge_csvs(
                 delimiter=delimiter,
                 encoding=encoding,
                 add_source=add_source,
+                remove_identifying_info=remove_identifying_info,
             )
         except Exception as ex:
             print(f"ERROR: Could not read {file_path}: {ex}")
@@ -311,6 +347,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         delimiter=args.delimiter,
         encoding=args.encoding,
         add_source=args.add_source,
+        remove_identifying_info=not args.keep_identifying_info,
         mode=args.mode,
     )
     if exit_code != 0 or merged is None:
