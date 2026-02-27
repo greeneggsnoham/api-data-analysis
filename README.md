@@ -6,11 +6,12 @@ but it
 works for any CSVs with compatible structures.
 
 ## Features
-- Merge CSVs from a folder (optionally recursive)
+- Merge CSVs from a folder (optionally recursive, default: `SS`)
 - Add `source_file` column to track origin
 - Column handling modes: `union`, `intersection`, `strict`
 - Configurable delimiter and encoding
 - Removes identifying column `project_name` by default (opt out available)
+- Removes duplicate rows based on usage identifiers and reports count
 
 ## Requirements
 - Python 3.10+ (for `|` type hints)
@@ -18,14 +19,14 @@ works for any CSVs with compatible structures.
 
 ## Usage
 ```bash
-python merge_files.py -i . -o merged.csv
-python merge_files.py -i data -o out.csv -s -m intersection
-python merge_files.py -i data -p "cost_*.csv" -r -d ";" -e "utf-8-sig"
-python merge_files.py -i data -o out.csv --keep-identifying-info
+py merge_files.py -i SS -o merged.csv
+py merge_files.py -i data -o out.csv -s -m intersection
+py merge_files.py -i data -p "cost_*.csv" -r -d ";" -e "utf-8-sig"
+py merge_files.py -i data -o out.csv --keep-identifying-info
 ```
 
 ## CLI Options
-- `-i`, `--input`: folder containing CSVs (default: current folder)
+- `-i`, `--input`: folder containing CSVs (default: `SS`)
 - `-o`, `--output`: output CSV path (default: `merged.csv`)
 - `-s`, `--add-source`: add a `source_file` column
 - `-d`, `--delimiter`: CSV delimiter (default: `,`)
@@ -34,6 +35,11 @@ python merge_files.py -i data -o out.csv --keep-identifying-info
 - `-r`, `--recursive`: search input folder recursively
 - `-p`, `--pattern`: filename pattern to match (default: `*.csv`)
 - `--keep-identifying-info`: keep `project_name` instead of removing it
+
+## Duplicate Definition
+A row is considered a duplicate if all of these fields match:
+`start_time`, `end_time`, `start_time_iso`, `end_time_iso`, `amount_value`,
+`amount_currency`, `line_item`, `project_id`, `organization_id`.
 
 ## Testing
 ```bash

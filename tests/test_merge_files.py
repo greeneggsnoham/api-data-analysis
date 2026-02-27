@@ -9,6 +9,7 @@ from pathlib import Path
 import pandas as pd
 
 from merge_files import (
+    drop_duplicate_rows,
     drop_identifying_columns,
     list_csv_files,
     merge_csvs,
@@ -140,6 +141,40 @@ class MergeFilesTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertIsNotNone(merged)
             self.assertNotIn("project_name", merged.columns)
+
+    def test_drop_duplicate_rows_removes_matches(self) -> None:
+        """Duplicate rows across identifying columns are removed."""
+        df = pd.DataFrame(
+            [
+                {
+                    "start_time": "1",
+                    "end_time": "2",
+                    "start_time_iso": "1",
+                    "end_time_iso": "2",
+                    "amount_value": "10",
+                    "amount_currency": "USD",
+                    "line_item": "a",
+                    "project_id": "p1",
+                    "organization_id": "o1",
+                    "extra": "x",
+                },
+                {
+                    "start_time": "1",
+                    "end_time": "2",
+                    "start_time_iso": "1",
+                    "end_time_iso": "2",
+                    "amount_value": "10",
+                    "amount_currency": "USD",
+                    "line_item": "a",
+                    "project_id": "p1",
+                    "organization_id": "o1",
+                    "extra": "y",
+                },
+            ]
+        )
+        deduped, removed = drop_duplicate_rows(df)
+        self.assertEqual(removed, 1)
+        self.assertEqual(len(deduped), 1)
 
 
 if __name__ == "__main__":
