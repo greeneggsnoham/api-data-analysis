@@ -11,6 +11,7 @@ works for any CSVs with compatible structures.
 - Column handling modes: `union`, `intersection`, `strict`
 - Configurable delimiter and encoding
 - Removes identifying column `project_name` by default (opt out available)
+- Removes duplicate rows based on usage identifiers and reports count
 
 ## Requirements
 - Python 3.10+ (for `|` type hints)
@@ -18,14 +19,14 @@ works for any CSVs with compatible structures.
 
 ## Usage
 ```bash
-python merge_files.py -i . -o merged.csv
+python merge_files.py -i SS -o merged.csv
 python merge_files.py -i data -o out.csv -s -m intersection
 python merge_files.py -i data -p "cost_*.csv" -r -d ";" -e "utf-8-sig"
 python merge_files.py -i data -o out.csv --keep-identifying-info
 ```
 
 ## CLI Options
-- `-i`, `--input`: folder containing CSVs (default: current folder)
+- `-i`, `--input`: folder containing CSVs (default: `SS`)
 - `-o`, `--output`: output CSV path (default: `merged.csv`)
 - `-s`, `--add-source`: add a `source_file` column
 - `-d`, `--delimiter`: CSV delimiter (default: `,`)

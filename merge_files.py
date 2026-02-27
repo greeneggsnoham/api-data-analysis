@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # Usage examples (copy/paste):
-# python merge_files.py -i . -o merged.csv
-# python merge_files.py -i data -o out.csv -s -m intersection
-# python merge_files.py -i data -p "cost_*.csv" -r -d ";" -e "utf-8-sig"
-# python merge_files.py -i data -o out.csv --keep-identifying-info
+# py merge_files.py -i SS -o merged.csv
+# py merge_files.py -i data -o out.csv -s -m intersection
+# py merge_files.py -i data -p "cost_*.csv" -r -d ";" -e "utf-8-sig"
+# py merge_files.py -i data -o out.csv --keep-identifying-info
 """
 Merge multiple CSV files into a single output CSV with configurable options.
 """
@@ -56,8 +56,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "-i",
         "--input",
         type=Path,
-        default=Path.cwd(),
-        help="Folder containing CSV files (default: current folder)",
+        default=Path("SS"),
+        help='Folder containing CSV files (default: "SS")',
     )
     parser.add_argument(
         "-o",
@@ -242,6 +242,43 @@ def apply_column_mode(
     return frames, 0
 
 
+# Remove duplicate rows based on specific identifying fields.
+def drop_duplicate_rows(df: pd.DataFrame) -> Tuple[pd.DataFrame, int]:
+    """
+    Drop duplicate rows based on the identifying column set.
+
+    Parameters:
+    df (pd.DataFrame): Input DataFrame.
+
+    Returns:
+    Tuple[pd.DataFrame, int]: (Deduplicated DataFrame, removed row count).
+    """
+    # Edge case: if any columns are missing, skip de-duplication.
+    dedupe_cols = [
+        "start_time",
+        "end_time",
+        "start_time_iso",
+        "end_time_iso",
+        "amount_value",
+        "amount_currency",
+        "line_item",
+        "project_id",
+        "organization_id",
+    ]
+    missing = [col for col in dedupe_cols if col not in df.columns]
+    if missing:
+        print(
+            "Skipping duplicate removal; missing columns: "
+            + ", ".join(missing)
+        )
+        return df, 0
+
+    before = len(df)
+    deduped = df.drop_duplicates(subset=dedupe_cols, keep="first")
+    removed = before - len(deduped)
+    return deduped, removed
+
+
 # Merge multiple CSV files into a single DataFrame.
 def merge_csvs(
     files: Sequence[Path],
@@ -292,6 +329,11 @@ def merge_csvs(
         return None, exit_code
 
     merged = pd.concat(frames, ignore_index=True, sort=False)
+    merged, removed = drop_duplicate_rows(merged)
+    if removed > 0:
+        print(f"Removed {removed} duplicate rows.")
+    else:
+        print("Removed 0 duplicate rows.")
     return merged, 0
 
 
