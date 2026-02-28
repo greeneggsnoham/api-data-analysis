@@ -12,6 +12,8 @@ works for any CSVs with compatible structures.
 - Configurable delimiter and encoding
 - Removes identifying column `project_name` by default (opt out available)
 - Removes duplicate rows based on usage identifiers and reports count
+- Adds helper columns `start_month` and `end_month` (e.g., `2026-02 February`)
+- Optional project filters: `--only-projects` / `--exclude-projects`
 
 ## Requirements
 - Python 3.10+ (for `|` type hints)
@@ -23,6 +25,8 @@ py merge_files.py -i SS -o merged.csv
 py merge_files.py -i data -o out.csv -s -m intersection
 py merge_files.py -i data -p "cost_*.csv" -r -d ";" -e "utf-8-sig"
 py merge_files.py -i data -o out.csv --keep-identifying-info
+py merge_files.py -i data --only-projects ELM,PolicyExplorer,AskEdHelp
+py merge_files.py -i data --exclude-projects ELM,PolicyExplorer,AskEdHelp
 ```
 
 ## CLI Options
@@ -35,6 +39,8 @@ py merge_files.py -i data -o out.csv --keep-identifying-info
 - `-r`, `--recursive`: search input folder recursively
 - `-p`, `--pattern`: filename pattern to match (default: `*.csv`)
 - `--keep-identifying-info`: keep `project_name` instead of removing it
+- `--only-projects`: keep only these project_name values (implies keep)
+- `--exclude-projects`: remove these project_name values (implies remove)
 
 ## Duplicate Definition
 A row is considered a duplicate if all of these fields match:

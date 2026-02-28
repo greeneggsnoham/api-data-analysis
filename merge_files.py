@@ -4,6 +4,8 @@
 # py merge_files.py -i data -o out.csv -s -m intersection
 # py merge_files.py -i data -p "cost_*.csv" -r -d ";" -e "utf-8-sig"
 # py merge_files.py -i data -o out.csv --keep-identifying-info
+# py merge_files.py -i data --only-projects ELM,PolicyExplorer,AskEdHelp, edhelp-usva
+# py merge_files.py -i data --exclude-projects ELM
 """
 Merge multiple CSV files into a single output CSV with configurable options.
 """
@@ -120,6 +122,22 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "(default: remove)."
         ),
     )
+    parser.add_argument(
+        "--only-projects",
+        default="",
+        help=(
+            "Comma-separated project_name values to keep. Implies "
+            "keeping identifying info."
+        ),
+    )
+    parser.add_argument(
+        "--exclude-projects",
+        default="",
+        help=(
+            "Comma-separated project_name values to remove. Implies "
+            "removing identifying info."
+        ),
+    )
 
     return parser.parse_args(argv)
 
@@ -151,6 +169,8 @@ def read_csv_file(
     encoding: str,
     add_source: bool,
     remove_identifying_info: bool,
+    only_projects: Set[str],
+    exclude_projects: Set[str],
 ) -> pd.DataFrame:
     """
     Read a CSV file into a DataFrame, optionally injecting source filename.
@@ -161,6 +181,8 @@ def read_csv_file(
     encoding (str): File encoding.
     add_source (bool): Whether to add a source_file column.
     remove_identifying_info (bool): Whether to drop identifying columns.
+    only_projects (Set[str]): Project names to keep.
+    exclude_projects (Set[str]): Project names to remove.
 
     Returns:
     pd.DataFrame: Parsed DataFrame.
@@ -181,8 +203,13 @@ def read_csv_file(
             # If it already exists, still set it so it's correct.
             df["source_file"] = file_path.name
 
+    if only_projects or exclude_projects:
+        df = filter_projects(df, only_projects, exclude_projects)
+
     if remove_identifying_info:
         df = drop_identifying_columns(df)
+
+    df = add_helper_columns(df)
 
     return df
 
@@ -204,6 +231,36 @@ def drop_identifying_columns(df: pd.DataFrame) -> pd.DataFrame:
     if not to_drop:
         return df
     return df.drop(columns=to_drop)
+
+
+# Filter rows based on project_name values.
+def filter_projects(
+    df: pd.DataFrame,
+    only_projects: Set[str],
+    exclude_projects: Set[str],
+) -> pd.DataFrame:
+    """
+    Filter rows using the project_name column.
+
+    Parameters:
+    df (pd.DataFrame): Input DataFrame.
+    only_projects (Set[str]): Project names to keep.
+    exclude_projects (Set[str]): Project names to remove.
+
+    Returns:
+    pd.DataFrame: Filtered DataFrame.
+    """
+    if not only_projects and not exclude_projects:
+        return df
+
+    if "project_name" not in df.columns:
+        print("Skipping project filter; missing column: project_name")
+        return df
+
+    if only_projects:
+        return df[df["project_name"].isin(only_projects)].copy()
+
+    return df[~df["project_name"].isin(exclude_projects)].copy()
 
 
 # Align columns across frames based on the selected mode.
@@ -240,6 +297,23 @@ def apply_column_mode(
                 return frames, 2
 
     return frames, 0
+
+
+# Parse comma-separated project names into a set.
+def parse_project_list(value: str) -> Set[str]:
+    """
+    Parse a comma-separated list of project names.
+
+    Parameters:
+    value (str): Comma-separated project names.
+
+    Returns:
+    Set[str]: Cleaned set of project names.
+    """
+    if not value:
+        return set()
+    items = [item.strip() for item in value.split(",")]
+    return {item for item in items if item}
 
 
 # Remove duplicate rows based on specific identifying fields.
@@ -279,6 +353,34 @@ def drop_duplicate_rows(df: pd.DataFrame) -> Tuple[pd.DataFrame, int]:
     return deduped, removed
 
 
+# Add helper month columns derived from ISO timestamps.
+def add_helper_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add helper columns derived from timestamp fields.
+
+    Parameters:
+    df (pd.DataFrame): Input DataFrame.
+
+    Returns:
+    pd.DataFrame: DataFrame with helper columns added.
+    """
+    # Edge case: if required columns are missing, leave unchanged.
+    required = ["start_time_iso", "end_time_iso"]
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        print(
+            "Skipping helper columns; missing columns: "
+            + ", ".join(missing)
+        )
+        return df
+
+    start_dt = pd.to_datetime(df["start_time_iso"], errors="coerce", utc=True)
+    end_dt = pd.to_datetime(df["end_time_iso"], errors="coerce", utc=True)
+    df["start_month"] = start_dt.dt.strftime("%Y-%m %B")
+    df["end_month"] = end_dt.dt.strftime("%Y-%m %B")
+    return df
+
+
 # Merge multiple CSV files into a single DataFrame.
 def merge_csvs(
     files: Sequence[Path],
@@ -286,6 +388,8 @@ def merge_csvs(
     encoding: str,
     add_source: bool,
     remove_identifying_info: bool,
+    only_projects: Set[str],
+    exclude_projects: Set[str],
     mode: str,
 ) -> Tuple[pd.DataFrame | None, int]:
     """
@@ -297,6 +401,8 @@ def merge_csvs(
     encoding (str): File encoding.
     add_source (bool): Whether to add a source_file column.
     remove_identifying_info (bool): Whether to drop identifying columns.
+    only_projects (Set[str]): Project names to keep.
+    exclude_projects (Set[str]): Project names to remove.
     mode (str): Column handling mode.
 
     Returns:
@@ -316,6 +422,8 @@ def merge_csvs(
                 encoding=encoding,
                 add_source=add_source,
                 remove_identifying_info=remove_identifying_info,
+                only_projects=only_projects,
+                exclude_projects=exclude_projects,
             )
         except Exception as ex:
             print(f"ERROR: Could not read {file_path}: {ex}")
@@ -373,6 +481,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     """
     args = parse_args(argv)
 
+    only_projects = parse_project_list(args.only_projects)
+    exclude_projects = parse_project_list(args.exclude_projects)
+    if only_projects and exclude_projects:
+        print("ERROR: Use only one of --only-projects or --exclude-projects.")
+        return 2
+
+    remove_identifying_info = not args.keep_identifying_info
+    if only_projects:
+        remove_identifying_info = False
+    elif exclude_projects:
+        remove_identifying_info = True
+
     files = sorted(list_csv_files(args.input, args.pattern, args.recursive))
     files = exclude_output_file(files, args.output)
 
@@ -389,7 +509,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         delimiter=args.delimiter,
         encoding=args.encoding,
         add_source=args.add_source,
-        remove_identifying_info=not args.keep_identifying_info,
+        remove_identifying_info=remove_identifying_info,
+        only_projects=only_projects,
+        exclude_projects=exclude_projects,
         mode=args.mode,
     )
     if exit_code != 0 or merged is None:
