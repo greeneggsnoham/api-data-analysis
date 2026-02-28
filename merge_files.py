@@ -4,8 +4,8 @@
 # py merge_files.py -i data -o out.csv -s -m intersection
 # py merge_files.py -i data -p "cost_*.csv" -r -d ";" -e "utf-8-sig"
 # py merge_files.py -i data -o out.csv --keep-identifying-info
-# py merge_files.py -i data --only-projects ELM,PolicyExplorer,AskEdHelp, edhelp-usva
-# py merge_files.py -i data --exclude-projects ELM
+# py merge_files.py -i data --only-projects ELM,PolicyExplorer,AskEdHelp,edhelp-usva
+# py merge_files.py -i data --exclude-projects ELM,AskEdHelp,edhelp-usva,PolicyExplorer
 """
 Merge multiple CSV files into a single output CSV with configurable options.
 """
