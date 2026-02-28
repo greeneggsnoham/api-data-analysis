@@ -9,11 +9,14 @@ from pathlib import Path
 import pandas as pd
 
 from merge_files import (
+    add_helper_columns,
     drop_duplicate_rows,
     drop_identifying_columns,
+    filter_projects,
     list_csv_files,
     merge_csvs,
     main,
+    parse_project_list,
 )
 
 
@@ -142,6 +145,20 @@ class MergeFilesTests(unittest.TestCase):
             self.assertIsNotNone(merged)
             self.assertNotIn("project_name", merged.columns)
 
+    def test_add_helper_columns(self) -> None:
+        """Helper month columns are derived from ISO timestamps."""
+        df = pd.DataFrame(
+            {
+                "start_time_iso": ["2025-01-15T10:00:00Z"],
+                "end_time_iso": ["2025-02-20T12:30:00Z"],
+            }
+        )
+        updated = add_helper_columns(df)
+        self.assertIn("start_month", updated.columns)
+        self.assertIn("end_month", updated.columns)
+        self.assertEqual(updated.loc[0, "start_month"], "2025-01 January")
+        self.assertEqual(updated.loc[0, "end_month"], "2025-02 February")
+
     def test_drop_duplicate_rows_removes_matches(self) -> None:
         """Duplicate rows across identifying columns are removed."""
         df = pd.DataFrame(
@@ -175,6 +192,33 @@ class MergeFilesTests(unittest.TestCase):
         deduped, removed = drop_duplicate_rows(df)
         self.assertEqual(removed, 1)
         self.assertEqual(len(deduped), 1)
+
+    def test_parse_project_list(self) -> None:
+        """Project list parsing trims whitespace and ignores empties."""
+        parsed = parse_project_list(" ELM , ,PolicyExplorer,AskEdHelp ")
+        self.assertEqual(parsed, {"ELM", "PolicyExplorer", "AskEdHelp"})
+
+    def test_filter_projects_only(self) -> None:
+        """Filtering keeps only matching project_name rows."""
+        df = pd.DataFrame(
+            {
+                "project_name": ["ELM", "Other"],
+                "x": ["1", "2"],
+            }
+        )
+        filtered = filter_projects(df, {"ELM"}, set())
+        self.assertEqual(filtered["project_name"].tolist(), ["ELM"])
+
+    def test_filter_projects_exclude(self) -> None:
+        """Filtering removes excluded project_name rows."""
+        df = pd.DataFrame(
+            {
+                "project_name": ["ELM", "Other"],
+                "x": ["1", "2"],
+            }
+        )
+        filtered = filter_projects(df, set(), {"ELM"})
+        self.assertEqual(filtered["project_name"].tolist(), ["Other"])
 
 
 if __name__ == "__main__":
